@@ -100,6 +100,7 @@ int main (int argc, char **argv) {
 	FILE *fp, *fp2;				// file pointers
 	char *block;				// padding file
 	int size, newsize;			// size of file and temp size 
+	/* stat import from <sys/stat.h> and <unistd.h> */
 	struct stat status;			// finding file size
 
 	
@@ -338,6 +339,7 @@ int main (int argc, char **argv) {
 		}
 	
 		/* Create Coding directory */
+		/* S_IRWXU: Read, write, and search, or execute, for the file owne */
 		i = mkdir("Coding", S_IRWXU);
 		if (i == -1 && errno != EEXIST) {
 			fprintf(stderr, "Unable to create Coding directory.\n");
@@ -345,14 +347,15 @@ int main (int argc, char **argv) {
 		}
 	
 		/* Determine original size of file */
-		stat(argv[1], &status);	
-		size = status.st_size;
+		stat(argv[1], &status);	/* get files's status into &status*/
+		size = status.st_size; /* total size of file */
         } else {
         	if (sscanf(argv[1]+1, "%d", &size) != 1 || size <= 0) {
                 	fprintf(stderr, "Files starting with '-' should be sizes for randomly created input\n");
 			exit(1);
 		}
         	fp = NULL;
+		/*produce a random number; import from 'gf-rand.h'*/
 		MOA_Seed(time(0));
         }
 
@@ -360,12 +363,22 @@ int main (int argc, char **argv) {
 	
 	/* Find new size by determining next closest multiple */
 	if (packetsize != 0) {
+		/* *
+		* packetsize: size of d(i,j)
+		* w: number of packet in one block
+		* block: one file is broken into k blocks
+		* sizeof(long): bits of basic type
+		*/
 		if (size%(k*w*packetsize*sizeof(long)) != 0) {
 			while (newsize%(k*w*packetsize*sizeof(long)) != 0) 
 				newsize++;
 		}
 	}
 	else {
+		/* *
+		* w: number of packet in one block, 
+		*    but the size of packet must be sizeof(long)/or other size of basic type.
+		*/
 		if (size%(k*w*sizeof(long)) != 0) {
 			while (newsize%(k*w*sizeof(long)) != 0) 
 				newsize++;
@@ -390,6 +403,7 @@ int main (int argc, char **argv) {
 		else {
 			readins = newsize/buffersize;
 		}
+		/* block is pointed to the start of a continuious addrress which size is sizeof(char)*buffersize */
 		block = (char *)malloc(sizeof(char)*buffersize);
 		blocksize = buffersize/k;
 	}
@@ -423,8 +437,8 @@ int main (int argc, char **argv) {
 	md = strlen(temp);
 	
 	/* Allocate data and coding */
-	data = (char **)malloc(sizeof(char*)*k);
-	coding = (char **)malloc(sizeof(char*)*m);
+	data = (char **)malloc(sizeof(char*)*k);  /* data is a pointer pointed to a (char*) type. */
+	coding = (char **)malloc(sizeof(char*)*m); /* coding is a pointer pointed to a (char*) type. */
 	for (i = 0; i < m; i++) {
 		coding[i] = (char *)malloc(sizeof(char)*blocksize);
                 if (coding[i] == NULL) { perror("malloc"); exit(1); }
