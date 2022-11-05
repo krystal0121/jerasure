@@ -71,6 +71,7 @@ is the file name with "_k#" or "_m#" and then the extension.
 #include "reed_sol.h"
 #include "cauchy.h"
 #include "liberation.h"
+#include "rdp.h"
 #include "timing.h"
 
 #define N 10
@@ -147,8 +148,9 @@ int main (int argc, char **argv) {
 	/* Error check Arguments*/
 	if (argc != 8) {
 		fprintf(stderr,  "usage: inputfile k m coding_technique w packetsize buffersize\n");
-		fprintf(stderr,  "\nChoose one of the following coding techniques: \nreed_sol_van, \nreed_sol_r6_op, \ncauchy_orig, \ncauchy_good, \nliberation, \nblaum_roth, \nliber8tion");
+		fprintf(stderr,  "\nChoose one of the following coding techniques: \nreed_sol_van, \nreed_sol_r6_op, \ncauchy_orig, \ncauchy_good, \nliberation, \nblaum_roth, \nliber8tion, \nrdp");
 		fprintf(stderr,  "\n\nPacketsize is ignored for the reed_sol's");
+		fprintf(stderr,  "\n\nPacketsize and are is ignored for the rdp.");
 		fprintf(stderr,  "\nBuffersize of 0 means the buffersize is chosen automatically.\n");
 		fprintf(stderr,  "\nIf you just want to test speed, use an inputfile of \"-number\" where number is the size of the fake file you want to test.\n\n");
 		exit(0);
@@ -184,6 +186,11 @@ int main (int argc, char **argv) {
 			exit(0);
 		}
 		
+	}
+	if (strcmp(argv[4], "rdp") == 0) {
+		/* erase influence to buffersize */
+		w = 1;
+		packetsize = 0;
 	}
 
 	/* Determine proper buffersize by finding the closest valid buffersize to the input value  */
@@ -316,8 +323,19 @@ int main (int argc, char **argv) {
 		}
 		tech = Liber8tion;
 	}
+	else if (strcmp(argv[4], "rdp") == 0) {
+		if (!is_prime(k+1)) {
+			fprintf(stderr, "k+1 must be prime\n");
+			exit(0);
+		}
+		if (m != 2) {
+			fprintf(stderr, "m must equal 2\n");
+			exit(0);
+		}
+		tech = RDP;
+	}
 	else {
-		fprintf(stderr,  "Not a valid coding technique. Choose one of the following: reed_sol_van, reed_sol_r6_op, cauchy_orig, cauchy_good, liberation, blaum_roth, liber8tion, no_coding\n");
+		fprintf(stderr,  "Not a valid coding technique. Choose one of the following: reed_sol_van, reed_sol_r6_op, cauchy_orig, cauchy_good, liberation, blaum_roth, liber8tion, no_coding, rdp\n");
 		exit(0);
 	}
 
@@ -465,6 +483,7 @@ int main (int argc, char **argv) {
 			schedule = jerasure_smart_bitmatrix_to_schedule(k, m, w, bitmatrix);
 			break;
 		case RDP:
+			break;
 		case EVENODD:
 			assert(0);
 	}
@@ -528,6 +547,8 @@ int main (int argc, char **argv) {
 				jerasure_schedule_encode(k, m, w, schedule, data, coding, blocksize, packetsize);
 				break;
 			case RDP:
+				rdp_encode(k, data, coding, blocksize/k);
+				break;
 			case EVENODD:
 				assert(0);
 		}

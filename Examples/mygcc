@@ -1,0 +1,23 @@
+# For debugging in GDB, recomplie below files.
+
+gcc -g -c -lgf_complete -I/home/parallels/project/filesystem_lab1/jerasure/include /home/parallels/project/filesystem_lab1/jerasure/src/galois.c -o /home/parallels/project/filesystem_lab1/jerasure/src/.libs/galois.o
+
+gcc -g -c -lgf_complete -I/home/parallels/project/filesystem_lab1/jerasure/include /home/parallels/project/filesystem_lab1/jerasure/src/rdp.c -o /home/parallels/project/filesystem_lab1/jerasure/src/./.libs/rdp.o;
+
+gcc -g -c -lgf_complete -I/home/parallels/project/filesystem_lab1/jerasure/include /home/parallels/project/filesystem_lab1/jerasure/src/rdor.c -o /home/parallels/project/filesystem_lab1/jerasure/src/./.libs/rdor.o;
+
+gcc -g -c -lgf_complete -I/home/parallels/project/filesystem_lab1/jerasure/include /home/parallels/project/filesystem_lab1/jerasure/src/reed_sol.c -o /home/parallels/project/filesystem_lab1/jerasure/src/./.libs/reed_sol.o;
+
+gcc -g -c -lgf_complete -I/home/parallels/project/filesystem_lab1/jerasure/include /home/parallels/project/filesystem_lab1/jerasure/src/jerasure.c -o /home/parallels/project/filesystem_lab1/jerasure/src/./.libs/jerasure.o
+
+gcc -g -c -lgf_complete -I/home/parallels/project/filesystem_lab1/jerasure/include /home/parallels/project/filesystem_lab1/jerasure/Examples/encoder.c
+
+gcc -g -c -lgf_complete -I/home/parallels/project/filesystem_lab1/jerasure/include /home/parallels/project/filesystem_lab1/jerasure/Examples/decoder.c
+
+gcc -g -lgf_complete /home/parallels/project/filesystem_lab1/jerasure/src/.libs/*.o /home/parallels/project/filesystem_lab1/gf-complete/src/*.o /home/parallels/project/filesystem_lab1/jerasure/src/timing.o /home/parallels/project/filesystem_lab1/jerasure/Examples/encoder.o -o /home/parallels/project/filesystem_lab1/jerasure/Examples/encoder.out
+
+gcc -g -lgf_complete /home/parallels/project/filesystem_lab1/jerasure/src/.libs/*.o /home/parallels/project/filesystem_lab1/gf-complete/src/*.o /home/parallels/project/filesystem_lab1/jerasure/src/timing.o /home/parallels/project/filesystem_lab1/jerasure/Examples/decoder.o -o /home/parallels/project/filesystem_lab1/jerasure/Examples/decoder.out
+
+
+# compiled and build executable file
+# gcc -g -I/home/parallels/project/filesystem_lab1/jerasure/include .libs/galois.o -lgf_complete jerasure.c -o jerasure.out;

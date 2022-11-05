@@ -74,12 +74,14 @@ same arguments, and encoder.c does error check.
 #include "cauchy.h"
 #include "liberation.h"
 #include "timing.h"
+#include "rdp.h"
+#include "rdor.h"
 
-#define N 10
+#define N 11
 
-enum Coding_Technique {Reed_Sol_Van, Reed_Sol_R6_Op, Cauchy_Orig, Cauchy_Good, Liberation, Blaum_Roth, Liber8tion, RDP, EVENODD, No_Coding};
+enum Coding_Technique {Reed_Sol_Van, Reed_Sol_R6_Op, Cauchy_Orig, Cauchy_Good, Liberation, Blaum_Roth, Liber8tion, RDP, RDOR, EVENODD, No_Coding};
 
-char *Methods[N] = {"reed_sol_van", "reed_sol_r6_op", "cauchy_orig", "cauchy_good", "liberation", "blaum_roth", "liber8tion", "rdp", "evenodd", "no_coding"};
+char *Methods[N] = {"reed_sol_van", "reed_sol_r6_op", "cauchy_orig", "cauchy_good", "liberation", "blaum_roth", "liber8tion", "rdp", "rdor", "evenodd", "no_coding"};
 
 /* Global variables for signal handler */
 enum Coding_Technique method;
@@ -115,6 +117,7 @@ int main (int argc, char **argv) {
 	char *temp;
 	char *cs1, *cs2, *extension;
 	char *fname;
+	char **data_fnames, **parity_fnames; 	// for RDOR
 	int md;
 	char *curdir;
 
@@ -134,8 +137,9 @@ int main (int argc, char **argv) {
 	timing_set(&t1);
 
 	/* Error checking parameters */
-	if (argc != 2) {
-		fprintf(stderr, "usage: inputfile\n");
+	if (argc != 2 && argc != 3) {
+		fprintf(stderr, "usage: inputfile, decode_technique\n");
+		fprintf(stderr, "decode_technique is only avaliable for RDOR. \n");
 		exit(0);
 	}
 	curdir = (char *)malloc(sizeof(char)*1000);
@@ -191,12 +195,54 @@ int main (int argc, char **argv) {
 		fprintf(stderr, "Metadata file - bad format\n");
 		exit(0);
 	}
+	if (argc == 3 && strcmp(argv[2], "rdor") == 0) {
+		tech = RDOR;
+		printf("Switch decode method to RDOR\n");
+	}
 	method = tech;
 	if (fscanf(fp, "%d", &readins) != 1) {
 		fprintf(stderr, "Metadata file - bad format\n");
 		exit(0);
 	}
-	fclose(fp);	
+	fclose(fp);
+
+
+	sprintf(temp, "%d", k);
+	md = strlen(temp);
+
+	/* in RDOR, only part of the data on surviving disk will be read into memory */
+	if (tech == RDOR) {
+		data_fnames = (char **)malloc(sizeof(char*)*k);
+		parity_fnames = (char **)malloc(sizeof(char*)*m);
+		for (i = 1; i <= k; i++) {
+			data_fnames[i-1] = (char *)malloc(sizeof(char*)*(100+strlen(argv[1])+20));
+			sprintf(data_fnames[i-1], "%s/Coding/%s_k%0*d%s", curdir, cs1, md, i, extension);
+		}
+		for (i = 1; i <= m; i++) {
+			parity_fnames[i-1] = (char *)malloc(sizeof(char*)*(100+strlen(argv[1])+20));
+			sprintf(parity_fnames[i-1], "%s/Coding/%s_m%0*d%s", curdir, cs1, md, i, extension);
+		}
+
+		j = rdor_decode(k, readins, buffersize, data_fnames, parity_fnames);
+		
+		if (j == -1) {
+			fprintf(stderr, "Unsuccessful!\n");
+			exit(0);
+		}
+
+		/* free memory */
+		free(temp);
+		free(c_tech);
+		free(cs1);
+		free(fname);
+		free(extension);
+
+		timing_set(&t2);
+		tsec = timing_delta(&t1, &t2);
+		printf("De_Total (MB/sec): %0.10f\n\n", (((double) buffersize/k*readins)/1024.0/1024.0)/tsec);
+
+		return 0;
+	}	
 
 	/* Allocate memory */
 	erased = (int *)malloc(sizeof(int)*(k+m));
@@ -216,8 +262,8 @@ int main (int argc, char **argv) {
 		blocksize = buffersize/k;
 	}
 
-	sprintf(temp, "%d", k);
-	md = strlen(temp);
+	// sprintf(temp, "%d", k);
+	// md = strlen(temp);
 	timing_set(&t3);
 
 	/* Create coding matrix or bitmatrix */
@@ -252,7 +298,7 @@ int main (int argc, char **argv) {
 	
 	/* Begin decoding process */
 	total = 0;
-	n = 1;	
+	n = 1;
 	while (n <= readins) {
 		numerased = 0;
 		/* Open files, check for erasures, read in data/coding */	
@@ -324,6 +370,9 @@ int main (int argc, char **argv) {
 		else if (tech == Cauchy_Orig || tech == Cauchy_Good || tech == Liberation || tech == Blaum_Roth || tech == Liber8tion) {
 			i = jerasure_schedule_decode_lazy(k, m, w, bitmatrix, erasures, data, coding, blocksize, packetsize, 1);
 		}
+		else if (tech == RDP) {
+			i = rdp_decode(k, data, coding, blocksize/k, erasures);
+		}
 		else {
 			fprintf(stderr, "Not a valid coding technique.\n");
 			exit(0);
@@ -337,33 +386,61 @@ int main (int argc, char **argv) {
 		}
 	
 		/* Create decoded file */
-		sprintf(fname, "%s/Coding/%s_decoded%s", curdir, cs1, extension);
-		if (n == 1) {
-			fp = fopen(fname, "wb");
+		char *write;
+		if (tech == RDP) {
+			i = 0;
+			while (i < numerased) {
+				if (erasures[i] == -1) break;
+				else if (erasures[i] < k) {
+					sprintf(fname, "%s/Coding/%s_k%0*d%s.decode", curdir, cs1, md, erasures[i]+1, extension);
+					write = data[erasures[i]];
+
+				}
+				else {
+					sprintf(fname, "%s/Coding/%s_m%0*d%s.decode", curdir, cs1, md, erasures[i]+1-k, extension);
+					write = coding[erasures[i]-k];
+				}
+
+				if (n == 1) {
+					fp = fopen(fname, "wb");
+				}
+				else {
+					fp = fopen(fname, "ab");
+				}
+				fwrite(write, sizeof(char), blocksize, fp);
+				fclose(fp);
+				i++;
+			}
 		}
 		else {
-			fp = fopen(fname, "ab");
-		}
-		for (i = 0; i < k; i++) {
-			if (total+blocksize <= origsize) {
-				fwrite(data[i], sizeof(char), blocksize, fp);
-				total+= blocksize;
+			sprintf(fname, "%s/Coding/%s_decoded%s", curdir, cs1, extension);
+			if (n == 1) {
+				fp = fopen(fname, "wb");
 			}
 			else {
-				for (j = 0; j < blocksize; j++) {
-					if (total < origsize) {
-						fprintf(fp, "%c", data[i][j]);
-						total++;
+				fp = fopen(fname, "ab");
+			}
+			for (i = 0; i < k; i++) {
+				if (total+blocksize <= origsize) {
+					fwrite(data[i], sizeof(char), blocksize, fp);
+					total+= blocksize;
+				}
+				else {
+					for (j = 0; j < blocksize; j++) {
+						if (total < origsize) {
+							fprintf(fp, "%c", data[i][j]);
+							total++;
+						}
+						else {
+							break;
+						}
+						
 					}
-					else {
-						break;
-					}
-					
 				}
 			}
+			fclose(fp);
 		}
 		n++;
-		fclose(fp);
 		totalsec += timing_delta(&t3, &t4);
 	}
 	
@@ -379,8 +456,13 @@ int main (int argc, char **argv) {
 	/* Stop timing and print time */
 	timing_set(&t2);
 	tsec = timing_delta(&t1, &t2);
-	printf("Decoding (MB/sec): %0.10f\n", (((double) origsize)/1024.0/1024.0)/totalsec);
-	printf("De_Total (MB/sec): %0.10f\n\n", (((double) origsize)/1024.0/1024.0)/tsec);
+	if (tech ==  RDP) {
+		printf("De_Total (MB/sec): %0.10f\n\n", (((double) buffersize/k*readins)/1024.0/1024.0)/tsec);
+	}
+	else {
+		printf("Decoding (MB/sec): %0.10f\n", (((double) origsize)/1024.0/1024.0)/totalsec);
+		printf("De_Total (MB/sec): %0.10f\n\n", (((double) origsize)/1024.0/1024.0)/tsec);
+	}
 
 	return 0;
 }	
